@@ -32,12 +32,12 @@
 
 <script>
 const SHEET_ID = "https://docs.google.com/spreadsheets/d/1F9BEmVMeAhTR_ahVQQLJEkNrFM7HEnvLBcsEyVZCSuo/edit";
-const SHEET_NAME = "Product_Barcode_Map";   // change if your sheet name is different
+const SHEET_NAME = "Product_Barcode_Map";
 
 const SHEET_URL =
-  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
-function extractPossibleGS1Prefixes(barcode) {
+function extractPrefixes(barcode) {
   return [
     barcode.substring(0,6),
     barcode.substring(0,7),
@@ -47,40 +47,43 @@ function extractPossibleGS1Prefixes(barcode) {
 }
 
 function onScanSuccess(barcode) {
-  document.getElementById("status").innerText = "Processing...";
+  document.getElementById("status").innerText = "Checking product...";
   html5QrcodeScanner.clear();
 
   fetch(SHEET_URL)
-    .then(res => res.text())
+    .then(response => response.text())
     .then(text => {
-      const json = JSON.parse(text.substring(47).slice(0, -2));
-      const rows = json.table.rows;
+      const jsonText = text.match(/google\.visualization\.Query\.setResponse\((.*)\)/s)[1];
+      const data = JSON.parse(jsonText);
 
-      const prefixes = extractPossibleGS1Prefixes(barcode);
+      const rows = data.table.rows;
+      const prefixes = extractPrefixes(barcode);
 
-      for (let row of rows) {
-        const sheetPrefix = row.c[0].v.toString();
-        const pageUrl = row.c[1].v;
+      for (let r of rows) {
+        if (!r.c[0] || !r.c[1]) continue;
+
+        const sheetPrefix = r.c[0].v.toString();
+        const url = r.c[1].v;
 
         if (prefixes.includes(sheetPrefix)) {
-          window.location.href = pageUrl;
+          window.location.href = url;
           return;
         }
       }
 
       document.getElementById("status").innerText =
-        "Product not found for this barcode";
+        "No matching product found";
     })
-    .catch(() => {
+    .catch(err => {
+      console.error(err);
       document.getElementById("status").innerText =
-        "Error reading product database";
+        "Error reading database";
     });
 }
 
 const html5QrcodeScanner = new Html5QrcodeScanner(
   "reader",
-  { fps: 10, qrbox: 250 },
-  false
+  { fps: 10, qrbox: 250 }
 );
 
 html5QrcodeScanner.render(onScanSuccess);
@@ -88,4 +91,3 @@ html5QrcodeScanner.render(onScanSuccess);
 
 </body>
 </html>
-
