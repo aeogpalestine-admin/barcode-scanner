@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scan Product</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Barcode Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      padding: 10px;
+    }
+    #reader {
+      width: 300px;
+      margin: auto;
+    }
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Scan Product Barcode</h2>
+  <div id="reader"></div>
+  <div id="status">Point camera at barcode</div>
+
+<script>
+const SHEET_ID = "https://docs.google.com/spreadsheets/d/1F9BEmVMeAhTR_ahVQQLJEkNrFM7HEnvLBcsEyVZCSuo/edit?usp=sharing";
+const SHEET_NAME = "Product_Barcode_Map";   // change if your sheet name is different
+
+const SHEET_URL =
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+
+function extractPossibleGS1Prefixes(barcode) {
+  return [
+    barcode.substring(0,6),
+    barcode.substring(0,7),
+    barcode.substring(0,8),
+    barcode.substring(0,9)
+  ];
+}
+
+function onScanSuccess(barcode) {
+  document.getElementById("status").innerText = "Processing...";
+  html5QrcodeScanner.clear();
+
+  fetch(SHEET_URL)
+    .then(res => res.text())
+    .then(text => {
+      const json = JSON.parse(text.substring(47).slice(0, -2));
+      const rows = json.table.rows;
+
+      const prefixes = extractPossibleGS1Prefixes(barcode);
+
+      for (let row of rows) {
+        const sheetPrefix = row.c[0].v.toString();
+        const pageUrl = row.c[1].v;
+
+        if (prefixes.includes(sheetPrefix)) {
+          window.location.href = pageUrl;
+          return;
+        }
+      }
+
+      document.getElementById("status").innerText =
+        "Product not found for this barcode";
+    })
+    .catch(() => {
+      document.getElementById("status").innerText =
+        "Error reading product database";
+    });
+}
+
+const html5QrcodeScanner = new Html5QrcodeScanner(
+  "reader",
+  { fps: 10, qrbox: 250 },
+  false
+);
+
+html5QrcodeScanner.render(onScanSuccess);
+</script>
+
+</body>
+</html>
